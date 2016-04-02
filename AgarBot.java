@@ -11,63 +11,105 @@ import javax.imageio.ImageIO;
 import java.awt.Rectangle;
 
 public class AgarBot {
-    public static final int DELAY = 1000;
-    public static final int RADIUS = 400;
 	
-
+	static Detection dct = new Detection();
+		
     public static void main(String... args) throws Exception {
-		//screenSize.setSize(1280,720);
-        Robot robot = new Robot();
-        Random random = new Random();
-		Detection dct=new Detection();
+
+    	Robot robot = new Robot();
+        double newLocation[];
+
+		if(args.length==0)
+			Thread.sleep(Const.DELAY*5);		// default delay of 5 seconds before bot starts
+		else
+			Thread.sleep(Const.DELAY*Integer.parseInt(args[0]));	
 		
-		//double width = screenSize.getWidth();
-		//double height = screenSize.getHeight();
-		//System.out.println(width+" : "+height);
-		
-		Thread.sleep(DELAY*5);
-		
-		//int count=0;
-		while(true){
-			dct.detect();//count);
-			if(dct.circleList.size()!=0){
-				int x0=dct.circleList.get(0).x;
-				int y0=dct.circleList.get(0).y;
-				int r0=dct.circleList.get(0).r;
-				double min=1280;
-				int minx=x0,miny=y0;
-				for (int i = 1; i < dct.circleList.size(); i++) {
-					int x=dct.circleList.get(i).x;
-					int y=dct.circleList.get(i).y;
-					int r=dct.circleList.get(i).r;
-					
-					double dist=euclidean(x0,y0,x,y);
-					if(dist<min && r0>=r*1.25){
-						min=dist;
-						minx=x;
-						miny=y;
-					}
-				}
-				System.out.println("minx: "+minx+" | miny: "+miny + " list size : "+dct.circleList.size());
-				robot.mouseMove((int)(minx*1920.0/1280),(int)(miny*1080.0/720));
-				dct.circleList.clear();
-				//count++;
+		while(true)
+		{
+			dct.detect();							// Capture screen and process it
+			if(dct.circleList.size()!=0)
+			{
+				newLocation = flee();
+
+				// System.out.println(" | x: "+newLocation[0]+" | y: "+newLocation[1] + " list size : "+dct.circleList.size());
+
+				robot.mouseMove((int)(newLocation[0]*1920.0/1280),(int)(newLocation[1]*1080.0/720));	
+				
+				if( dct.circleList.size() > 150 )	// after game ends, circle List floods. End program
+					break;
+				dct.circleList.clear();				
 			}
-			Thread.sleep(DELAY/10);
 		}
-		/*
-		double i=0;
-        while (i<10*Math.PI) {
-            robot.mouseMove((int)(200 * Math.sin(i)+width/2), (int)(200 * Math.cos(i)+height/2));
-			i=i+0.1;
-			//System.out.println(i%1.0 + " " + i%2);
-			
-			process(robot);
-            //robot.mouseMove(random.nextInt(MAX_X), random.nextInt(MAX_Y));
-            Thread.sleep(DELAY/100);
-		}*/
     }
-	static double euclidean(int x1,int y1,int x2,int y2){
+	static double euclidean(double x1,double y1,double x2,double y2){
 		return Math.sqrt(Math.pow(x2-x1,2)+Math.pow(y2-y1,2));
+	}
+
+	static double[] flee()
+	{
+		CircleInfo bot, enemy;
+		double xDelta, yDelta, magnitude, min=1280;
+		double newLocation[] = new double[2];
+		int minX, minY;
+		
+		bot = dct.circleList.get(0);
+		xDelta = 0;
+		yDelta = 0;
+
+		for (int i = 1; i < dct.circleList.size(); i++) 
+		{
+			enemy = dct.circleList.get(i);
+
+			if( bot.r >= enemy.r*1.25 )		// Enemy 25% bigger than us
+			{
+				xDelta += (bot.x-enemy.x)*enemy.weightage;
+				yDelta += (bot.y-enemy.y)*enemy.weightage;
+			}
+		}
+		// System.out.print("xDelta: "+xDelta+" | yDelta: "+yDelta);
+
+		magnitude = euclidean(xDelta,yDelta,0,0);	// magnitude of the net vector
+		if( magnitude==0 )
+			magnitude = 1;							// to avoid divide by zero error
+
+		// Offset considering bot as origin
+		newLocation[0] = bot.x + (200*xDelta/magnitude);	
+		newLocation[1] = bot.y + (200*yDelta/magnitude);
+		return newLocation;
+	} 
+	static double[] seek()
+	{
+		CircleInfo bot, enemy;
+		double xDelta, yDelta, distance, min=1280;
+		double newLocation[] = new double[2];
+		int	minX = 0, minY = 0;
+
+		bot = dct.circleList.get(0);
+
+		for (int i = 1; i < dct.circleList.size(); i++) 
+		{
+			enemy = dct.circleList.get(i);
+			distance = euclidean(bot.x, bot.y, enemy.x, enemy.y);
+
+			if(distance < min && bot.r >= enemy.r*1.25)
+			{
+				min = distance;
+				minX = enemy.x;
+				minY = enemy.y;
+			}
+		}
+		distance = euclidean(minX, minY, bot.x, bot.y);
+
+		if(distance >= 200)				// Normalizing
+		{
+			newLocation[0] = bot.x + (200*(minX-bot.x)/distance);
+			newLocation[1] = bot.y + (200*(minY-bot.y)/distance);
+		}
+		else
+		{
+			newLocation[0] = minX;
+			newLocation[1] = minY;
+		}
+		return newLocation;
 	}
 }

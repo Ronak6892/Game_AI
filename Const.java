@@ -15,5 +15,6 @@ public class Const{
 	static final String SCREEN_SHOT = new String("agar/screenShot.png");
 
 	static final int WHITE_COLOR = 220;
-	
+
+    static final int MOUSE_POINTER_RADIUS = 400;
 }
