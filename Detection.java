@@ -43,7 +43,7 @@ public class Detection
 		BufferedImage img = robot.createScreenCapture(new Rectangle(screenSize));
 		int rgb[][][]=new int[(int)Const.SCREEN_Y_SIZE][(int)Const.SCREEN_X_SIZE][3];
 	
-		//ImageIO.write(img, "PNG", new File("agar/screenShot"+count2+".png"));//(Const.SCREEN_SHOT));
+		//ImageIO.write(img, "PNG", new File(Const.SCREEN_SHOT));//("agar/screenShot"+count2+".png"));
 		//BufferedImage img=ImageIO.read(new File(Const.SCREEN_SHOT));
 		
 		for(int j=85; j<Const.SCREEN_Y_SIZE-50; j++)		// ignore top and bottom regions 
@@ -98,9 +98,10 @@ public class Detection
 					
 					if(radius >= 3)				// Ignore stray dots, add rest to list of circles
 					{
-						if(selfDetected)
+						if(circleList.size()!=0)
 						{
-							double w = weightage(radius,circleList.get(0).r);
+							double dist=euclidean(circleList.get(0).x,circleList.get(0).y,x,y);
+							double w = weightage(radius,circleList.get(0).r,dist);
 							circleList.add( new CircleInfo(x,y,radius,w) );
 						}
 						else
@@ -117,44 +118,46 @@ public class Detection
 		}
 
 		//To determine Indices of the left most, right most, up most, down most circles
+		if(circleList.size()!=0)
+		{
+			int leftIndex, rightIndex, upIndex, downIndex;	
+			CircleInfo bot = circleList.get(0), enemy;
+			int leftX = bot.x;
+			int rightX = bot.x;
+			int upY = bot.y;
+			int downY = bot.y;
 
-		int leftIndex, rightIndex, upIndex, downIndex;	
-		CircleInfo bot = circleList.get(0), enemy;
-		int leftX = bot.x;
-		int rightX = bot.x;
-		int upY = bot.y;
-		int downY = bot.y;
+			for(int i=0; i<circleList.size(); i++){
+				enemy = circleList.get(i);
 
-		for(int i=0; i<circleList.size(); i++){
-			enemy = circleList.get(i);
+				if(enemy.x < leftX){
+					leftX = enemy.x;
+					leftIndex = i;
+				}
+				if(enemy.x > rightX){
+					rightX = enemy.x;
+					rightIndex = i;
+				}
+				if(enemy.y < upY){
+					upY = enemy.y;
+					upIndex = i;
+				}
+				if(enemy.x > downY){
+					downY = enemy.y;
+					downIndex = i;
+				}
+			}
 
-			if(enemy.x < leftX){
-				leftX = enemy.x;
-				leftIndex = i;
-			}
-			if(enemy.x > rightX){
-				rightX = enemy.x;
-				rightIndex = i;
-			}
-			if(enemy.y < upY){
-				upY = enemy.y;
-				upIndex = i;
-			}
-			if(enemy.x > downY){
-				downY = enemy.y;
-				downIndex = i;
-			}
+			// add a fake enemy in case bot gets to close a border, as a repulsion
+			if( leftX > Const.SCREEN_X_SIZE/4)
+				circleList.add(new CircleInfo(0,bot.y,leftX,weightage(2*leftX,bot.r,bot.x)));
+			else if( rightX < 3*Const.SCREEN_X_SIZE/4)
+				circleList.add(new CircleInfo(Const.SCREEN_X_SIZE,bot.y,rightX,weightage(2*rightX,bot.r,Const.SCREEN_X_SIZE-bot.x)));
+			else if( upY > (Const.SCREEN_Y_SIZE-85-50)/4+85)
+				circleList.add(new CircleInfo(bot.x,85,upY,weightage(2*upY,bot.r,bot.y-85)));
+			else if( downY < 3*(Const.SCREEN_Y_SIZE-85-50)/4+85)
+				circleList.add(new CircleInfo(bot.x,Const.SCREEN_Y_SIZE-50,downY,weightage(2*downY,bot.r,Const.SCREEN_Y_SIZE-50-bot.y)));
 		}
-
-		// add a fake enemy in case bot gets to close a border, as a repulsion
-		if( leftX > Const.SCREEN_X_SIZE/4)
-			circleList.add(new CircleInfo(0,bot.y,leftX,weightage(2*leftX,bot.r)));
-		else if( rightX < 3*Const.SCREEN_X_SIZE/4)
-			circleList.add(new CircleInfo(Const.SCREEN_X_SIZE,bot.y,rightX,weightage(2*rightX,bot.r)));
-		else if( upY > (Const.SCREEN_Y_SIZE-85-50)/4+85)
-			circleList.add(new CircleInfo(bot.x,85,upY,weightage(2*upY,bot.r)));
-		else if( downY < 3*(Const.SCREEN_Y_SIZE-85-50)/4+85)
-			circleList.add(new CircleInfo(bot.x,Const.SCREEN_Y_SIZE-50,downY,weightage(2*downY,bot.r)));
 	}
 
 	int getLeftEnd(int rgb[][][],int j,int k,int val){
@@ -218,7 +221,23 @@ public class Detection
 		}
 	}
 
-	double weightage(double r,double r0){
-		return 1.25/(r/r0);
+	double weightage(double r,double r0,double dist){
+		dist=Math.max(1,dist-(r+r0));
+		double gamma=2;
+		double alpha,beta=(r+r0);
+		if(r/r0>=2.5)
+			alpha=2.5;		// gamma * alpha/sizeRatio * beta/dist
+		else if(r/r0>=1.25)
+			alpha=1.25;
+		else if(r/r0>0.8)
+			alpha=1/2*0.8;
+		else if(r/r0>=0.4)
+			alpha=1/0.4;
+		else
+			alpha=1/0.2;
+		return gamma * alpha/(r/r0)*Math.pow(beta/dist,1);
+	}
+	static double euclidean(double x1,double y1,double x2,double y2){
+		return Math.sqrt(Math.pow(x2-x1,2)+Math.pow(y2-y1,2));
 	}
 }

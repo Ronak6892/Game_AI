@@ -18,6 +18,7 @@ public class AgarBot {
 
     	Robot robot = new Robot();
         double newLocation[];
+        double newLocationTemp[];
 
 		if(args.length==0)
 			Thread.sleep(Const.DELAY*5);		// default delay of 5 seconds before bot starts
@@ -30,14 +31,29 @@ public class AgarBot {
 			if(dct.circleList.size()!=0)
 			{
 				newLocation = flee();
+				double angle,range;
+				CircleInfo bot=dct.circleList.get(0);
+				if(newLocation[0]==bot.x && newLocation[1]==bot.y){	//no flee, seek range -PI to PI
+					angle=0;
+					range=Math.PI;
+				}
+				else{					
+					angle = angleFinder(newLocation[0],newLocation[1]);
+					range = rangeFinder(angle);
+					//System.out.println("angle: "+angle+" | range: "+range);
+				}
+				newLocationTemp = seek(angle,range);
+				if(!(newLocationTemp[0]==0 && newLocationTemp[1]==0)){
+					newLocation=newLocationTemp;
+				}
 
 				// System.out.println(" | x: "+newLocation[0]+" | y: "+newLocation[1] + " list size : "+dct.circleList.size());
 
-				robot.mouseMove((int)(newLocation[0]*1920.0/1280),(int)(newLocation[1]*1080.0/720));	
+				robot.mouseMove((int)(newLocation[0] * 1920.0/1280),(int)(newLocation[1] * 1080.0/720));	
 				
-				if( dct.circleList.size() > 150 )	// after game ends, circle List floods. End program
-					break;
-				dct.circleList.clear();				
+				//if( dct.circleList.size() > 150 )	// after game ends, circle List floods. End program
+				//	break;
+				dct.circleList.clear();	
 			}
 		}
     }
@@ -49,7 +65,7 @@ public class AgarBot {
 	{
 		CircleInfo bot, enemy;
 		double xDelta, yDelta, magnitude, min=1280;
-		double newLocation[] = new double[2];
+		double newLocation[] = new double[3];
 		int minX, minY;
 		
 		bot = dct.circleList.get(0);
@@ -60,7 +76,7 @@ public class AgarBot {
 		{
 			enemy = dct.circleList.get(i);
 
-			if( bot.r >= enemy.r*1.25 )		// Enemy 25% bigger than us
+			if( enemy.r >= bot.r*1.25 )		// Enemy 25% bigger than us
 			{
 				xDelta += (bot.x-enemy.x)*enemy.weightage;
 				yDelta += (bot.y-enemy.y)*enemy.weightage;
@@ -73,29 +89,62 @@ public class AgarBot {
 			magnitude = 1;							// to avoid divide by zero error
 
 		// Offset considering bot as origin
-		newLocation[0] = bot.x + (200*xDelta/magnitude);	
-		newLocation[1] = bot.y + (200*yDelta/magnitude);
+		newLocation[0] = (bot.x + (200*xDelta/magnitude));	
+		newLocation[1] = (bot.y + (200*yDelta/magnitude));
 		return newLocation;
-	} 
-	static double[] seek()
+	}
+
+	static double angleFinder(double x,double y){
+		CircleInfo bot=dct.circleList.get(0);
+		double angle=Math.atan2(y-bot.y,x-bot.x);
+		return angle;
+		
+	}
+	static double rangeFinder(double angle){
+		
+		double rangeFactor=0;
+		CircleInfo enemy,bot=dct.circleList.get(0);
+		for (int i = 1; i < dct.circleList.size(); i++) 
+		{
+			enemy = dct.circleList.get(i);
+
+			if( enemy.r >= bot.r*1.25 )		// Enemy 25% bigger than us
+			{
+				if((angle+Math.PI/4)>angleFinder(enemy.x,enemy.y) && (angle-Math.PI/4)<angleFinder(enemy.x,enemy.y))
+					rangeFactor+=enemy.r;
+			}
+		}
+		rangeFactor/=bot.r;
+		double maxRange=20*Math.PI/180;
+		double minRange=0;
+		return Math.max(0,maxRange-((maxRange-minRange)/5)*rangeFactor);
+	}
+	static double[] seek(double angle,double range)
 	{
 		CircleInfo bot, enemy;
+		
+		bot = dct.circleList.get(0);
+		
 		double xDelta, yDelta, distance, min=1280;
 		double newLocation[] = new double[2];
 		int	minX = 0, minY = 0;
 
-		bot = dct.circleList.get(0);
 
 		for (int i = 1; i < dct.circleList.size(); i++) 
 		{
 			enemy = dct.circleList.get(i);
 			distance = euclidean(bot.x, bot.y, enemy.x, enemy.y);
 
-			if(distance < min && bot.r >= enemy.r*1.25)
+			if(angle+range>angleFinder(enemy.x,enemy.y) && angle-range<angleFinder(enemy.x,enemy.y))
 			{
-				min = distance;
-				minX = enemy.x;
-				minY = enemy.y;
+				//System.out.println("ex: "+enemy.x+" | ey: "+enemy.y+" eangle:"+angleFinder(enemy.x,enemy.y));
+				//System.out.println("yes");
+				if(distance < min && bot.r >= enemy.r*1.25)
+				{
+					min = distance;
+					minX = enemy.x;
+					minY = enemy.y;
+				}
 			}
 		}
 		distance = euclidean(minX, minY, bot.x, bot.y);
