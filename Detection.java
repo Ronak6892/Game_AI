@@ -12,45 +12,39 @@ import java.io.File;
 import javax.imageio.ImageIO;
 import java.awt.Rectangle;
 
-class CircleInfo{
-		int x;
-		int y;
-		int r;
-		double weightage;
 
-		CircleInfo(int a,int b, int c, double w)
-		{
-			x = a;
-			y = b;
-			r = c;
-			weightage = w;
-		}
-	}
 
 public class Detection
 {
 	List<CircleInfo> circleList = new ArrayList<CircleInfo>(); 
 	Const c=new Const();
-	Dimension screenSize = new Dimension(1280,720);
+	Dimension screenSize;
 	
 	public Detection(){
-	}
+        GraphicsEnvironment g = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        GraphicsDevice[] devices = g.getScreenDevices();
+        screenSize = new Dimension(devices[0].getDisplayMode().getWidth(), devices[0].getDisplayMode().getHeight());
+        Const.SCREEN_X_SIZE = (int)screenSize.getWidth();
+        Const.SCREEN_Y_SIZE = (int)screenSize.getHeight();
+        Const.ORIGINAL_SCREEN_X_SIZE = (int)Toolkit.getDefaultToolkit().getScreenSize().getWidth();
+        Const.ORIGINAL_SCREEN_Y_SIZE = (int)Toolkit.getDefaultToolkit().getScreenSize().getHeight();
+    }
+    
     public void detect() throws Exception {
 
 		Robot robot = new Robot();
 		Color color;
 		boolean selfDetected = false;
-		BufferedImage img = robot.createScreenCapture(new Rectangle(screenSize));
 		int rgb[][][]=new int[(int)Const.SCREEN_Y_SIZE][(int)Const.SCREEN_X_SIZE][3];
-	
-		//ImageIO.write(img, "PNG", new File(Const.SCREEN_SHOT));//("agar/screenShot"+count2+".png"));
-		//BufferedImage img=ImageIO.read(new File(Const.SCREEN_SHOT));
+		BufferedImage img = robot.createScreenCapture(new Rectangle(screenSize));
+		// ImageIO.write(img, "PNG", new File(Const.SCREEN_SHOT));//("agar2/screenShot"+count2+".png"));
+		// BufferedImage img=ImageIO.read(new File(Const.SCREEN_SHOT));
 		
-		for(int j=85; j<Const.SCREEN_Y_SIZE-50; j++)		// ignore top and bottom regions 
+		for(int j=0; j<Const.SCREEN_Y_SIZE; j++)		 
 		{
 			for(int k=0; k<Const.SCREEN_X_SIZE; k++)
 			{
-				if(j>=636 && j<=656 && k>=19 && k<=182)		// erase score on bottom left corner
+				if(j>=Const.SCREEN_Y_SIZE*(1 - 90.0/1800) && k<=(300.0/3200)*Const.SCREEN_X_SIZE)		// erase score on bottom left corner  300/3200 & 1800 - 90/1800
 				{
 					rgb[j][k][0]=0;
 					rgb[j][k][1]=0;
@@ -66,14 +60,15 @@ public class Detection
 			}
 		}
 		
-		for(int j=85; j<Const.SCREEN_Y_SIZE-50; j+=5)	// ignore top and bottom portion of image
+		for(int j=0; j<Const.SCREEN_Y_SIZE; j+=5)	
 		{
 			for(int k=0; k<Const.SCREEN_X_SIZE; k+=5)
 			{
 				if(!selfDetected)
 				{				
 					// To ensure bot is detected first
-					j=378;k=640;
+					j=Const.SCREEN_Y_SIZE/2;
+                    k=Const.SCREEN_X_SIZE/2;
 				}
 				if(colorCompare(rgb,j,k,Const.WHITE_COLOR))
 				{
@@ -106,12 +101,14 @@ public class Detection
 						}
 						else
 							circleList.add( new CircleInfo(x,y,radius,0) );
+                            
+                        // System.out.println("X : "+x+" Y : "+y+" R : "+radius);
 					}
 				}
 				if(!selfDetected)			
 				{		
 					// Once bot is detected, begin from the top left
-					j=85;k=0;
+					j=0;k=0;
 					selfDetected=true;
 				}
 			}
@@ -153,10 +150,10 @@ public class Detection
 				circleList.add(new CircleInfo(0,bot.y,leftX,weightage(2*leftX,bot.r,bot.x)));
 			else if( rightX < 3*Const.SCREEN_X_SIZE/4)
 				circleList.add(new CircleInfo(Const.SCREEN_X_SIZE,bot.y,rightX,weightage(2*rightX,bot.r,Const.SCREEN_X_SIZE-bot.x)));
-			else if( upY > (Const.SCREEN_Y_SIZE-85-50)/4+85)
-				circleList.add(new CircleInfo(bot.x,85,upY,weightage(2*upY,bot.r,bot.y-85)));
-			else if( downY < 3*(Const.SCREEN_Y_SIZE-85-50)/4+85)
-				circleList.add(new CircleInfo(bot.x,Const.SCREEN_Y_SIZE-50,downY,weightage(2*downY,bot.r,Const.SCREEN_Y_SIZE-50-bot.y)));
+			else if( upY > (Const.SCREEN_Y_SIZE)/4)
+				circleList.add(new CircleInfo(bot.x,0,upY,weightage(2*upY,bot.r,bot.y)));
+			else if( downY < 3*(Const.SCREEN_Y_SIZE)/4)
+				circleList.add(new CircleInfo(bot.x,Const.SCREEN_Y_SIZE,downY,weightage(2*downY,bot.r,Const.SCREEN_Y_SIZE-bot.y)));
 		}
 	}
 
@@ -176,14 +173,14 @@ public class Detection
 	}
 	int getUpEnd(int rgb[][][],int j,int k,int val){
 		for(int i=j;;i--){
-			if(i==85-1 || !colorCompare(rgb,i,k,val)){
+			if(i==-1 || !colorCompare(rgb,i,k,val)){
 				return i+1;
 			}
 		}
 	}
 	int getDownEnd(int rgb[][][],int j,int k,int val){
 		for(int i=j;;i++){
-			if(i==Const.SCREEN_Y_SIZE-50 || !colorCompare(rgb,i,k,val)){
+			if(i==Const.SCREEN_Y_SIZE || !colorCompare(rgb,i,k,val)){
 				return i-1;
 			}
 		}
@@ -225,7 +222,9 @@ public class Detection
 		dist=Math.max(1,dist-(r+r0));
 		double gamma=2;
 		double alpha,beta=(r+r0);
-		if(r/r0>=2.5)
+		if(r/r0>=5)
+			alpha=5;
+		else if(r/r0>=2.5)
 			alpha=2.5;		// gamma * alpha/sizeRatio * beta/dist
 		else if(r/r0>=1.25)
 			alpha=1.25;
@@ -235,7 +234,10 @@ public class Detection
 			alpha=1/0.4;
 		else
 			alpha=1/0.2;
-		return gamma * alpha/(r/r0)*Math.pow(beta/dist,1);
+		if(alpha==5)
+			return gamma * 0.5*Math.pow(beta/dist,1);	//aplha change to 2.5, r/r0 fixed to 5. So alpha/sizeRatio=2.5/5=0.5;
+		else
+			return gamma * alpha/(r/r0)*Math.pow(beta/dist,1);
 	}
 	static double euclidean(double x1,double y1,double x2,double y2){
 		return Math.sqrt(Math.pow(x2-x1,2)+Math.pow(y2-y1,2));
