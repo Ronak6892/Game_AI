@@ -17,6 +17,7 @@ import java.awt.Rectangle;
 public class Detection
 {
 	List<CircleInfo> circleList = new ArrayList<CircleInfo>(); 
+	List<CircleInfo> virusDetectorList = new ArrayList<CircleInfo>(); 
 	Const c=new Const();
 	Dimension screenSize;
 	
@@ -93,16 +94,23 @@ public class Detection
 					
 					if(radius >= 3)				// Ignore stray dots, add rest to list of circles
 					{
-						if(circleList.size()!=0)
+						if(circleList.size()!=0 && radius < 10){
+							circleList.add( new CircleInfo(x,y,radius,0,'p') );
+						}
+						else if(circleList.size()!=0)
 						{
 							double dist=euclidean(circleList.get(0).x,circleList.get(0).y,x,y);
-							double w = weightage(radius,circleList.get(0).r,dist);
-							circleList.add( new CircleInfo(x,y,radius,w) );
+							double w = weightage(radius,circleList.get(0).r,dist,'c');
+							circleList.add( new CircleInfo(x,y,radius,w,'c') );
 						}
 						else
-							circleList.add( new CircleInfo(x,y,radius,0) );
+							circleList.add( new CircleInfo(x,y,radius,0,'b') );
                             
-                        // System.out.println("X : "+x+" Y : "+y+" R : "+radius);
+                        //System.out.println("X : "+x+" Y : "+y+" R : "+radius);
+					}
+					else{
+						virusDetectorList.add( new CircleInfo(x,y,radius,0,'s') );
+                        //System.out.println("------X : "+x+" Y : "+y+" R : "+radius);
 					}
 				}
 				if(!selfDetected)			
@@ -113,7 +121,22 @@ public class Detection
 				}
 			}
 		}
-
+		
+		for (int i = 1; i < circleList.size(); i++) 
+		{
+			CircleInfo enemy,stray;
+			enemy = circleList.get(i);
+			if(enemy.type=='c')
+			{
+				for (int j = 1; j < virusDetectorList.size(); j++) 
+				{
+					stray = virusDetectorList.get(j);
+					double distFactor=euclidean(enemy.x,enemy.y,stray.x,stray.y)-enemy.r;
+					if( distFactor>=-10 && distFactor<=10)
+						enemy.type='v';
+				}
+			}
+		}
 		//To determine Indices of the left most, right most, up most, down most circles
 		if(circleList.size()!=0)
 		{
@@ -147,13 +170,13 @@ public class Detection
 
 			// add a fake enemy in case bot gets to close a border, as a repulsion
 			if( leftX > Const.SCREEN_X_SIZE/4)
-				circleList.add(new CircleInfo(0,bot.y,leftX,weightage(2*leftX,bot.r,bot.x)));
+				circleList.add(new CircleInfo(0,bot.y,leftX,weightage(2*leftX,bot.r,bot.x,'w'),'w'));
 			else if( rightX < 3*Const.SCREEN_X_SIZE/4)
-				circleList.add(new CircleInfo(Const.SCREEN_X_SIZE,bot.y,rightX,weightage(2*rightX,bot.r,Const.SCREEN_X_SIZE-bot.x)));
+				circleList.add(new CircleInfo(Const.SCREEN_X_SIZE,bot.y,rightX,weightage(2*rightX,bot.r,Const.SCREEN_X_SIZE-bot.x,'w'),'w'));
 			else if( upY > (Const.SCREEN_Y_SIZE)/4)
-				circleList.add(new CircleInfo(bot.x,0,upY,weightage(2*upY,bot.r,bot.y)));
+				circleList.add(new CircleInfo(bot.x,0,upY,weightage(2*upY,bot.r,bot.y,'w'),'w'));
 			else if( downY < 3*(Const.SCREEN_Y_SIZE)/4)
-				circleList.add(new CircleInfo(bot.x,Const.SCREEN_Y_SIZE,downY,weightage(2*downY,bot.r,Const.SCREEN_Y_SIZE-bot.y)));
+				circleList.add(new CircleInfo(bot.x,Const.SCREEN_Y_SIZE,downY,weightage(2*downY,bot.r,Const.SCREEN_Y_SIZE-bot.y,'w'),'w'));
 		}
 	}
 
@@ -218,26 +241,40 @@ public class Detection
 		}
 	}
 
-	double weightage(double r,double r0,double dist){
+	double weightage(double r,double r0,double dist,char type){
 		dist=Math.max(1,dist-(r+r0));
 		double gamma=2;
 		double alpha,beta=(r+r0);
-		if(r/r0>=5)
-			alpha=5;
-		else if(r/r0>=2.5)
-			alpha=2.5;		// gamma * alpha/sizeRatio * beta/dist
-		else if(r/r0>=1.25)
-			alpha=1.25;
-		else if(r/r0>0.8)
-			alpha=1/2*0.8;
-		else if(r/r0>=0.4)
-			alpha=1/0.4;
+		if(type!='v')
+		{
+			if(r/r0>=5)
+				alpha=5;
+			else if(r/r0>=2.5)
+				alpha=2.5;		// gamma * alpha/sizeRatio * beta/dist
+			else if(r/r0>=1.2)	//0.05 buffer instead of 1.25
+				alpha=1.25;
+			else if(r/r0>0.8)
+				alpha=1/2*0.8;
+			else if(r/r0>=0.4)
+				alpha=1/0.4;
+			else
+				alpha=1/0.2;
+			if(alpha==5)
+				return gamma * 0.5*Math.pow(beta/dist,1);	//aplha change to 2.5, r/r0 fixed to 5. So alpha/sizeRatio=2.5/5=0.5;
+			else
+				return gamma * alpha/(r/r0)*Math.pow(beta/dist,1);
+		}
 		else
-			alpha=1/0.2;
-		if(alpha==5)
-			return gamma * 0.5*Math.pow(beta/dist,1);	//aplha change to 2.5, r/r0 fixed to 5. So alpha/sizeRatio=2.5/5=0.5;
-		else
-			return gamma * alpha/(r/r0)*Math.pow(beta/dist,1);
+		{
+			
+			if(r/r0>=1.25)
+				alpha=1;
+			else if(r/r0>=0.8)
+				alpha=0.5;
+			else
+				alpha=1;
+			return gamma * alpha*(r/r0)*Math.pow(beta/dist,1);
+		}
 	}
 	static double euclidean(double x1,double y1,double x2,double y2){
 		return Math.sqrt(Math.pow(x2-x1,2)+Math.pow(y2-y1,2));

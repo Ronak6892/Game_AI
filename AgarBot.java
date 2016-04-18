@@ -61,6 +61,18 @@ public class AgarBot {
 				
 				//if( dct.circleList.size() > 150 )	// after game ends, circle List floods. End program
 				//	break;
+				/*
+				for (int i = 1; i < dct.circleList.size(); i++) 
+				{
+					
+					CircleInfo enemy = dct.circleList.get(i);
+					System.out.println("X: "+enemy.x+" Y: "+enemy.y+" R: "+enemy.r+" T: "+enemy.type);
+				}
+				for (int i = 1; i < dct.virusDetectorList.size(); i++) 
+				{
+					CircleInfo stray = dct.virusDetectorList.get(i);
+					System.out.println("X: "+stray.x+" Y: "+stray.y+" R: "+stray.r+" T: "+stray.type);
+				}*/
 				dct.circleList.clear();	
 			}
 		}
@@ -84,7 +96,8 @@ public class AgarBot {
 		{
 			enemy = dct.circleList.get(i);
 
-			if( enemy.r >= bot.r*1.25 )		// Enemy 25% bigger than us
+			if(( enemy.type=='c' && enemy.r >= bot.r*1.2 )		// Enemy 25% bigger than us with buffer of 5%
+				|| ( enemy.type=='v' && enemy.r <= bot.r*1.2 ))
 			{
 				xDelta += (bot.x-enemy.x)*enemy.weightage;
 				yDelta += (bot.y-enemy.y)*enemy.weightage;
